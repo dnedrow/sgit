@@ -11,7 +11,8 @@ settings:
 
 packages:
   GitKit:
-    path: /Volumes/Repos/AppleDev/GitKit
+    url: https://github.com/dnedrow/GitKit.git
+    exactVersion: 1.0.0
 
 targets:
   sgit:
