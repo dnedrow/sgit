@@ -1,0 +1,37 @@
+name: sgit
+
+options:
+  bundleIdPrefix: net.nedron
+  deploymentTarget:
+    macOS: "13.0"
+
+settings:
+  base:
+    SWIFT_VERSION: 5.9
+
+packages:
+  GitKit:
+    path: /Volumes/Repos/AppleDev/GitKit
+
+targets:
+  sgit:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Sources
+    dependencies:
+      - package: GitKit
+    settings:
+      base:
+        PRODUCT_NAME: sgit
+        PRODUCT_BUNDLE_IDENTIFIER: net.nedron.sgit
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: RELEASE
+
+schemes:
+  sgit:
+    build:
+      targets:
+        sgit: all
+    run:
+      config: Debug
+
