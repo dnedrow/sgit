@@ -2,6 +2,14 @@
 
 A lightweight, native command-line Git client written in Swift and powered by [GitKit](https://github.com/nickthedude/GitKit). `sgit` implements core Git operations — from initializing repositories and staging changes to cloning, fetching, and pushing over HTTPS, SSH, and local transports.
 
+> [!WARNING]
+> **Work in progress — not production ready.** sgit is under active development and is
+> **experimental**. APIs may change without notice, and the implementation has not been
+> hardened against real-world edge cases. **No guarantees are made** regarding correctness,
+> stability, or data integrity — using sgit against a repository you care about may lead
+> to **data loss or corruption**. Always operate on backups or throwaway copies, and do not
+> rely on it for critical or irreplaceable data. Use at your own risk.
+
 ## Features
 
 - **Repository management** — `init`, `clone`, `status`
