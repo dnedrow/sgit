@@ -51,8 +51,18 @@ enum SGit {
                 try Commands.stash(rest)
             case "remote":
                 try Commands.remote(rest)
-            case "clone", "fetch", "pull", "push":
-                try Commands.networkUnavailable(command)
+            case "clone":
+                try Commands.clone(rest)
+            case "fetch":
+                try Commands.fetch(rest)
+            case "pull":
+                try Commands.pull(rest)
+            case "push":
+                try Commands.push(rest)
+            case "__classify": // hidden diagnostic: prints the transport target for a URL
+                for arg in rest {
+                    Terminal.print("\(arg) -> \(try TransportFactory.classify(arg))")
+                }
             default:
                 Terminal.error("'\(command)' is not an sgit command. See 'sgit --help'.")
                 return 1
@@ -84,7 +94,7 @@ enum SGit {
         \(Terminal.style("COMMANDS", .bold))
           \(Terminal.style("Start a working area", .dim))
             init [--bare] [path]        Create an empty Git repository
-            clone <url> [path]          Clone a repository (network — unavailable)
+            clone <url> [path]          Clone a repository (https, ssh, or local)
 
           \(Terminal.style("Work on changes", .dim))
             status                      Show the working tree status
@@ -112,7 +122,9 @@ enum SGit {
             remote                      List remotes
                 remote add <name> <url> Add a remote
                 remote remove <name>    Remove a remote
-            fetch / pull / push         Network sync (transport — unavailable)
+            fetch [remote|url]          Download objects and refs
+            pull [remote|url]           Fetch and fast-forward the current branch
+            push [remote|url] [branch]  Update remote refs and objects
 
           \(Terminal.style("Other", .dim))
             help, --help, -h            Show this help screen
@@ -125,6 +137,14 @@ enum SGit {
             sgit log -n 5
             sgit branch feature
             sgit checkout feature
+            sgit clone https://github.com/owner/repo.git
+            sgit clone git@github.com:owner/repo.git
+            sgit clone /path/to/local/repo.git
+
+        \(Terminal.style("REMOTES & AUTH", .dim))
+            Transports: HTTPS, SSH (ssh:// or scp-like user@host:path), and local
+            paths or file:// URLs. HTTPS auth uses the URL userinfo, or the
+            GIT_USERNAME / GIT_PASSWORD (or GIT_TOKEN) environment variables.
 
         \(Terminal.style("IDENTITY", .dim))
             Author identity is read from GIT_AUTHOR_NAME / GIT_AUTHOR_EMAIL,

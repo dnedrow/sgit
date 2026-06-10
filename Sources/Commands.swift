@@ -133,7 +133,7 @@ enum Commands {
 
         let branch = (try? repo.head().branchName) ?? "HEAD"
         let summary = message.components(separatedBy: "\n").first ?? message
-        Terminal.print("[\(branch ?? "HEAD") \(String(oid.hex.prefix(7)))] \(summary)")
+        Terminal.print("[\(branch) \(String(oid.hex.prefix(7)))] \(summary)")
     }
 
     // MARK: - log
@@ -396,12 +396,59 @@ enum Commands {
         }
     }
 
-    // MARK: - Network commands (transport not bundled)
+    // MARK: - Network commands
 
-    static func networkUnavailable(_ command: String) throws {
-        throw SGitError.unsupported(
-            "'\(command)' requires a network transport, which is not available in this build of GitKit. "
-            + "Local operations (init, add, commit, branch, etc.) are fully supported."
-        )
+    /// `clone <url> [path]`
+    static func clone(_ args: [String]) throws {
+        guard let url = args.first else { throw SGitError.missingArgument("clone <url> [directory]") }
+        let directory = args.count >= 2 ? args[1] : TransportFactory.defaultDirectoryName(for: url)
+        let destination = URL(fileURLWithPath: directory)
+        try RemoteService.clone(url: url, into: destination)
+        Terminal.print("Done.")
+    }
+
+    /// `fetch [remote|url]`
+    static func fetch(_ args: [String]) throws {
+        let repo = try RepositoryLocator.openCurrent()
+        let (remoteName, url) = try resolveRemote(args.first, repo: repo)
+        _ = try RemoteService.fetch(repo: repo, remoteName: remoteName, url: url)
+    }
+
+    /// `pull [remote|url]`
+    static func pull(_ args: [String]) throws {
+        let repo = try RepositoryLocator.openCurrent()
+        let (remoteName, url) = try resolveRemote(args.first, repo: repo)
+        try RemoteService.pull(repo: repo, remoteName: remoteName, url: url)
+    }
+
+    /// `push [remote|url] [branch]`
+    static func push(_ args: [String]) throws {
+        let repo = try RepositoryLocator.openCurrent()
+        let (remoteName, url) = try resolveRemote(args.first, repo: repo)
+        let branch = args.count >= 2 ? args[1] : (try repo.head().branchName ?? "main")
+        try RemoteService.push(repo: repo, remoteName: remoteName, url: url, branch: branch)
+    }
+
+    /// Resolves an argument that may be a remote name or a literal URL into a
+    /// (name, url) pair, defaulting to "origin".
+    private static func resolveRemote(_ argument: String?, repo: GKRepository) throws -> (String, String) {
+        let store = RepositoryStore(gitDir: repo.gitDir)
+
+        // A value that looks like a URL is used directly.
+        if let argument, looksLikeURL(argument) {
+            return ("origin", argument)
+        }
+
+        let name = argument ?? "origin"
+        guard let url = store.readRemoteURL(name: name) else {
+            throw SGitError.missingArgument("no URL configured for remote '\(name)' (pass a URL explicitly)")
+        }
+        return (name, url)
+    }
+
+    private static func looksLikeURL(_ value: String) -> Bool {
+        value.contains("://") || value.hasPrefix("file:")
+            || TransportFactory.isSCPLike(value)           // e.g. git@github.com:org/repo.git
+            || value.hasPrefix("/") || value.hasPrefix("./") || value.hasPrefix("~")
     }
 }

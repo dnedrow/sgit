@@ -26,6 +26,8 @@ targets:
         PRODUCT_NAME: sgit
         PRODUCT_BUNDLE_IDENTIFIER: net.nedron.sgit
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: RELEASE
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/Bridging/sgit-Bridging-Header.h
+        OTHER_LDFLAGS: -lz
 
 schemes:
   sgit:
@@ -34,4 +36,3 @@ schemes:
         sgit: all
     run:
       config: Debug
-
