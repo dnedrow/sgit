@@ -1,0 +1,218 @@
+.\" Manpage for sgit.
+.\" Contact the project maintainers to correct errors or typos.
+.TH SGIT 1 "2026-06-11" "sgit 1.0.0" "User Commands"
+.SH NAME
+sgit \- a lightweight, native command-line Git client powered by GitKit
+.SH SYNOPSIS
+.B sgit
+.RI [ global-options ]
+.I command
+.RI [ args ]
+.SH DESCRIPTION
+.B sgit
+is a lightweight, native command-line Git client written in Swift and powered
+by GitKit. It implements core Git operations \(em from initializing
+repositories and staging changes to cloning, fetching, and pushing over HTTPS,
+SSH, and local transports.
+.PP
+Running
+.B sgit
+with no arguments prints the built-in help screen.
+.SH GLOBAL OPTIONS
+.TP
+.B \-\-activity
+Show an animated activity spinner while the command runs. This flag is optional
+and may be placed anywhere in the argument list. The spinner is drawn on
+standard error and is shown only when running in an interactive terminal, so it
+never interferes with piped or redirected output.
+.SH COMMANDS
+.SS Start a working area
+.TP
+.BI "init [\-\-bare] [" path ]
+Create an empty Git repository. With
+.B \-\-bare
+create a repository without a working tree.
+.TP
+.BI "clone " "url " [ path ]
+Clone a repository over HTTPS, SSH, or from a local path.
+.SS Work on changes
+.TP
+.B status
+Show the working tree status. May also be invoked as
+.BR st .
+.TP
+.BI "add " "path... " "| ."
+Stage file contents for the next commit. Use
+.BR . ", " \-A ", or " \-\-all
+to stage all changes.
+.TP
+.BI "rm " path...
+Unstage files from the index.
+.TP
+.BI "commit \-m " message
+Record staged changes to the repository. The message may also be supplied with
+.BR \-\-message .
+.TP
+.BI "reset [\-\-soft|\-\-mixed|\-\-hard] [" commit ]
+Reset the current HEAD to the given state. Defaults to
+.BR \-\-mixed
+and to the current HEAD commit when no commit is given.
+.TP
+.BI "stash [" message ]
+Stash away changes in the working directory.
+.SS Examine history & state
+.TP
+.BI "log [\-n " count ]
+Show commit logs. The count may also be given as
+.BI \-\-max\-count " count"
+or as a bare
+.BI \- count
+(defaults to 50).
+.TP
+.B "diff [\-\-staged]"
+Show changes between commits or, with
+.B \-\-staged
+(or
+.BR \-\-cached ),
+between the index and the last commit.
+.TP
+.BI "tag [\-a \-m " msg "] [" name ]
+List, create, or delete tags. Use
+.BI \-a
+(or
+.BR \-\-annotate )
+with
+.BI \-m " msg"
+to create an annotated tag, and
+.BI "\-d " name
+to delete a tag.
+.SS Branching & merging
+.TP
+.BI "branch [" name ]
+List or create branches. Use
+.BI "\-d " name
+to delete a branch and
+.BI "\-m " "old new"
+to rename one.
+.TP
+.BI "checkout " branch | commit
+Switch branches or restore a commit (detached HEAD). May also be invoked as
+.BR switch .
+.TP
+.BI "merge " branch
+Join two development histories together.
+.SS Collaborate
+.TP
+.B remote
+List remotes. Use
+.BI "remote add " "name url"
+to add a remote and
+.BI "remote remove " name
+(or
+.BR rm )
+to remove one.
+.TP
+.BI "fetch [" remote | url ]
+Download objects and refs from another repository.
+.TP
+.BI "pull [" remote | url ]
+Fetch and fast-forward the current branch.
+.TP
+.BI "push [" remote | url "] [" branch ]
+Update remote refs along with associated objects.
+.SS Other
+.TP
+.BR help ", " \-\-help ", " \-h
+Show the help screen.
+.TP
+.BR version ", " \-\-version ", " \-v
+Show version information.
+.SH TRANSPORTS & AUTHENTICATION
+.B sgit
+supports HTTPS, SSH (\fIssh://\fR or scp-like \fIuser@host:path\fR), and local
+paths or \fIfile://\fR URLs.
+.TP
+.B HTTPS
+Authentication uses the URL userinfo, or the
+.BR GIT_USERNAME " / " GIT_PASSWORD
+(or
+.BR GIT_TOKEN )
+environment variables.
+.TP
+.B SSH
+Uses your SSH agent and keys.
+.TP
+.B Local
+Filesystem paths or
+.I file://
+URLs.
+.SH IDENTITY
+Author identity is resolved in the following order:
+.IP 1. 4
+The
+.BR GIT_AUTHOR_NAME " / " GIT_AUTHOR_EMAIL
+environment variables.
+.IP 2. 4
+.BR user.name " / " user.email
+in the repository's
+.IR .git/config .
+.IP 3. 4
+.BR user.name " / " user.email
+in
+.IR ~/.gitconfig .
+.SH ENVIRONMENT
+.TP
+.B NO_COLOR
+When set, disables ANSI color output.
+.TP
+.BR GIT_USERNAME ", " GIT_PASSWORD ", " GIT_TOKEN
+HTTPS authentication credentials.
+.TP
+.BR GIT_AUTHOR_NAME ", " GIT_AUTHOR_EMAIL
+Override the committer identity.
+.SH EXAMPLES
+Initialize a repository and record an initial commit:
+.PP
+.RS 4
+.nf
+sgit init
+sgit add .
+sgit commit \-m "Initial commit"
+.fi
+.RE
+.PP
+Inspect history and work with branches:
+.PP
+.RS 4
+.nf
+sgit log \-n 5
+sgit branch feature
+sgit checkout feature
+.fi
+.RE
+.PP
+Clone a repository, showing a progress spinner:
+.PP
+.RS 4
+.nf
+sgit \-\-activity clone https://github.com/owner/repo.git
+sgit \-\-activity clone git@github.com:owner/repo.git
+sgit clone /path/to/local/repo.git
+.fi
+.RE
+.SH EXIT STATUS
+.B sgit
+exits
+.B 0
+on success and
+.B 1
+if an error occurs.
+.SH SEE ALSO
+.BR git (1)
+.SH CAVEATS
+.B sgit
+is experimental and under active development. No guarantees are made regarding
+correctness, stability, or data integrity. Operate on backups or throwaway
+copies, and do not rely on it for critical or irreplaceable data.
+.SH LICENSE
+Licensed under the MIT License.
