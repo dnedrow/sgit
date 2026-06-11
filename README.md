@@ -1,6 +1,6 @@
 # sgit
 
-A lightweight, native command-line Git client written in Swift and powered by [GitKit](https://github.com/nickthedude/GitKit). `sgit` implements core Git operations — from initializing repositories and staging changes to cloning, fetching, and pushing over HTTPS, SSH, and local transports.
+A lightweight, native command-line Git client written in Swift and powered by [GitKit](https://github.com/dnedrow/GitKit). `sgit` implements core Git operations — from initializing repositories and staging changes to cloning, fetching, and pushing over HTTPS, SSH, and local transports.
 
 > [!WARNING]
 > **Work in progress — not production ready.** sgit is under active development and is
