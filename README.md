@@ -2,6 +2,12 @@
 
 A lightweight, native command-line Git client written in Swift and powered by [GitKit](https://github.com/dnedrow/GitKit). `sgit` implements core Git operations — from initializing repositories and staging changes to cloning, fetching, and pushing over HTTPS, SSH, and local transports.
 
+> [!NOTE]
+> sgit is not pure Swift. It links against the system **zlib** library (via `-lz`
+> and a small Objective-C/C bridging header) to inflate and deflate Git
+> packfile and object streams. A C toolchain with `zlib.h` available — standard
+> on macOS — is therefore required to build.
+
 > [!WARNING]
 > **Work in progress — not production ready.** sgit is under active development and is
 > **experimental**. APIs may change without notice, and the implementation has not been
@@ -34,6 +40,12 @@ Once generated, open `sgit.xcodeproj` in Xcode or build from the command line:
 ```bash
 xcodebuild -project sgit.xcodeproj -scheme sgit build
 ```
+
+> [!NOTE]
+> The build links the system **zlib** (`-lz`) through the bridging header at
+> `Sources/Bridging/sgit-Bridging-Header.h`, so it is not a pure-Swift build.
+> The required `zlib.h` ships with the macOS SDK, so no extra packages are
+> normally needed.
 
 ## Features
 

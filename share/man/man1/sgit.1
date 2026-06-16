@@ -15,6 +15,14 @@ by GitKit. It implements core Git operations \(em from initializing
 repositories and staging changes to cloning, fetching, and pushing over HTTPS,
 SSH, and local transports.
 .PP
+.B sgit
+is not pure Swift: it links against the system
+.B zlib
+library (via
+.B \-lz
+and a small C bridging header) to inflate and deflate Git packfile and object
+streams.
+.PP
 Running
 .B sgit
 with no arguments prints the built-in help screen.
