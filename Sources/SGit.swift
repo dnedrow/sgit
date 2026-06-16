@@ -8,7 +8,12 @@ enum SGit {
     /// Parses arguments and dispatches to the matching command.
     static func run(_ arguments: [String]) -> Int32 {
         // arguments[0] is the executable path; drop it.
-        let args = Array(arguments.dropFirst())
+        var args = Array(arguments.dropFirst())
+
+        // `--activity` is a global flag: show a spinner while the command runs.
+        // Strip it from anywhere in the argument list before dispatching.
+        let activityEnabled = args.contains("--activity")
+        args.removeAll { $0 == "--activity" }
 
         guard let command = args.first else {
             printHelp()
@@ -16,6 +21,12 @@ enum SGit {
         }
 
         let rest = Array(args.dropFirst())
+
+        let activity = activityEnabled
+            ? ActivityIndicator(message: activityMessage(for: command))
+            : nil
+        activity?.start()
+        defer { activity?.stop() }
 
         do {
             switch command {
@@ -81,6 +92,21 @@ enum SGit {
         return 0
     }
 
+    /// A human-readable label shown next to the spinner for a given command.
+    private static func activityMessage(for command: String) -> String {
+        switch command {
+        case "clone": return "Cloning"
+        case "fetch": return "Fetching"
+        case "pull": return "Pulling"
+        case "push": return "Pushing"
+        case "log": return "Reading history"
+        case "status", "st": return "Checking status"
+        case "diff": return "Computing diff"
+        case "merge": return "Merging"
+        default: return "Working"
+        }
+    }
+
     // MARK: - Help
 
     static func printHelp() {
@@ -90,6 +116,9 @@ enum SGit {
 
         \(Terminal.style("USAGE", .bold))
             sgit <command> [options]
+
+        \(Terminal.style("GLOBAL OPTIONS", .bold))
+            --activity                  Show an activity spinner while running
 
         \(Terminal.style("COMMANDS", .bold))
           \(Terminal.style("Start a working area", .dim))

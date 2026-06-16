@@ -27,17 +27,27 @@ enum Terminal {
     }
 
     static func print(_ text: String = "") {
-        Swift.print(text)
+        emit { Swift.print(text) }
     }
 
     /// Prints an error to standard error, prefixed and colored red.
     static func error(_ text: String) {
         let prefix = style("error:", .bold, .red)
-        FileHandle.standardError.write(Data("\(prefix) \(text)\n".utf8))
+        emit { FileHandle.standardError.write(Data("\(prefix) \(text)\n".utf8)) }
     }
 
     static func warning(_ text: String) {
         let prefix = style("warning:", .bold, .yellow)
-        Swift.print("\(prefix) \(text)")
+        emit { Swift.print("\(prefix) \(text)") }
+    }
+
+    /// Writes output, clearing any running activity spinner first so the two do
+    /// not interleave on the terminal.
+    private static func emit(_ body: () -> Void) {
+        if let activity = ActivityIndicator.current {
+            activity.suspend(body)
+        } else {
+            body()
+        }
     }
 }

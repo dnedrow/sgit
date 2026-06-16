@@ -18,6 +18,22 @@ A lightweight, native command-line Git client written in Swift and powered by [G
 - **Branching & merging** — `branch`, `checkout`/`switch`, `merge`, `reset`, `stash`
 - **Networking** — `remote`, `fetch`, `pull`, `push` (HTTPS, SSH, and local paths)
 
+## Global Options
+
+| Option       | Description                                                |
+|--------------|------------------------------------------------------------|
+| `--activity` | Show an animated activity spinner while the command runs   |
+
+The `--activity` flag is optional and can be placed anywhere in the argument
+list. The spinner is drawn on standard error and is shown only when running in
+an interactive terminal, so it never interferes with piped or redirected output.
+
+```bash
+sgit --activity clone https://github.com/owner/repo.git
+sgit --activity fetch origin
+sgit --activity log -n 20
+```
+
 ## Getting Help
 
 Run `sgit` with no arguments, or use any of the help flags:
