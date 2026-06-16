@@ -4,19 +4,19 @@ name: sgit
 options:
   bundleIdPrefix: net.nedron
   deploymentTarget:
-    macOS: "13.0"
+    macOS: "15.0"
   xcodeVersion: "26.5"
   generateEmptyDirectories: false
 
 settings:
   base:
     SWIFT_VERSION: 5.9
-    MARKETING_VERSION: "1.0.3"
+    MARKETING_VERSION: "1.0.4"
 
 packages:
   GitKit:
     url: https://github.com/dnedrow/GitKit.git
-    exactVersion: 1.0.3
+    exactVersion: 1.0.4
 
 targets:
   sgit:
