@@ -7,7 +7,6 @@ import Foundation
 /// trailing Adler-32 — and reports `total_in`. That byte-accurate consumption
 /// count is essential for walking consecutive objects inside a packfile.
 enum Zlib {
-
     struct InflateResult {
         let data: Data
         /// Number of input bytes consumed (the complete zlib stream length).

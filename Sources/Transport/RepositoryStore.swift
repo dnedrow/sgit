@@ -66,7 +66,7 @@ struct RepositoryStore {
     func localRefOIDs() -> [GKObjectID] {
         let refsDir = gitDir.appendingPathComponent("refs")
         guard let enumerator = FileManager.default.enumerator(
-            at: refsDir, includingPropertiesForKeys: [.isRegularFileKey]) else { return [] }
+                at: refsDir, includingPropertiesForKeys: [.isRegularFileKey]) else { return [] }
 
         var oids: [GKObjectID] = []
         for case let url as URL in enumerator {

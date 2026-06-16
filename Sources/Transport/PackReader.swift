@@ -5,7 +5,6 @@ import GitKit
 /// `OFS_DELTA` and `REF_DELTA` entries. GitKit cannot do this (its inflater only
 /// supports stored blocks), so sgit implements it natively.
 struct PackReader {
-
     struct Object {
         let type: GKObjectType
         let data: Data
@@ -145,7 +144,7 @@ struct PackReader {
 
     private func readUInt32(at offset: Int) -> UInt32 {
         UInt32(pack[offset]) << 24 | UInt32(pack[offset + 1]) << 16 |
-        UInt32(pack[offset + 2]) << 8 | UInt32(pack[offset + 3])
+            UInt32(pack[offset + 2]) << 8 | UInt32(pack[offset + 3])
     }
 
     private func objectType(for raw: Int) -> GKObjectType? {

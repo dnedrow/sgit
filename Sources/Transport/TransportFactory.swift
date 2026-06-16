@@ -4,7 +4,6 @@ import GitKit
 /// Builds the appropriate `GKTransport` for a given remote URL, supporting
 /// HTTP(S), SSH (both `ssh://` and scp-like syntax), and local repositories.
 enum TransportFactory {
-
     /// The classified target of a remote URL.
     enum Target: Equatable {
         case http(URL)

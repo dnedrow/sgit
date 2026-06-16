@@ -4,7 +4,6 @@ import GitKit
 /// Implements the Git "smart" wire protocol (v0): reference advertisement
 /// parsing, upload-pack (fetch) requests, and receive-pack (push) requests.
 enum GitWireProtocol {
-
     /// The parsed result of a reference advertisement.
     struct Advertisement {
         var references: [GKReference]

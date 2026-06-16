@@ -4,7 +4,6 @@ import GitKit
 /// Implementations of each sgit subcommand. Each method receives the remaining
 /// arguments after the subcommand name.
 enum Commands {
-
     // MARK: - init
 
     static func initialize(_ args: [String]) throws {

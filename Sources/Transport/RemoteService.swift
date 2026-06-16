@@ -5,7 +5,6 @@ import GitKit
 /// `GKTransport` implementations. Object materialization is done natively here
 /// because GitKit's bundled inflater/unpacker only handles stored blocks.
 enum RemoteService {
-
     // MARK: - Clone
 
     static func clone(url: String, into destination: URL) throws {
