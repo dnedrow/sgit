@@ -3,7 +3,13 @@ import GitKit
 
 /// Top-level command router for the sgit CLI.
 enum SGit {
-    static let version = "1.0.0"
+    /// sgit's own version, read from the binary's embedded Info.plist
+    /// (`CFBundleShortVersionString`, populated from `MARKETING_VERSION`),
+    /// so `project.yml` remains the single source of truth.
+    static let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+
+    /// The linked GitKit release, reported by GitKit itself.
+    static let gitKitVersion = GK.version
 
     /// Parses arguments and dispatches to the matching command.
     static func run(_ arguments: [String]) -> Int32 {
@@ -33,7 +39,7 @@ enum SGit {
             case "help", "--help", "-h":
                 printHelp()
             case "version", "--version", "-v":
-                Terminal.print("sgit version \(version) (GitKit \(GK.version))")
+                Terminal.print("sgit version \(version) (GitKit \(gitKitVersion))")
             case "init":
                 try Commands.initialize(rest)
             case "status", "st":
@@ -112,7 +118,7 @@ enum SGit {
     static func printHelp() {
         let title = Terminal.style("sgit", .bold, .cyan)
         Terminal.print("""
-        \(title) — a command-line Git client powered by GitKit (v\(version))
+        \(title) — a command-line Git client powered by GitKit (v\(gitKitVersion))
 
         \(Terminal.style("USAGE", .bold))
             sgit <command> [options]
