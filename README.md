@@ -10,6 +10,31 @@ A lightweight, native command-line Git client written in Swift and powered by [G
 > to **data loss or corruption**. Always operate on backups or throwaway copies, and do not
 > rely on it for critical or irreplaceable data. Use at your own risk.
 
+## Building
+
+sgit uses [XcodeGen](https://github.com/yonaskolb/XcodeGen) to generate its Xcode
+project from the `project.yml` specification, so the `.xcodeproj` is not checked
+in as the source of truth and must be regenerated whenever the project structure
+changes.
+
+Install XcodeGen (for example, via [Homebrew](https://brew.sh)):
+
+```bash
+brew install xcodegen
+```
+
+Then generate the Xcode project from the repository root:
+
+```bash
+xcodegen generate
+```
+
+Once generated, open `sgit.xcodeproj` in Xcode or build from the command line:
+
+```bash
+xcodebuild -project sgit.xcodeproj -scheme sgit build
+```
+
 ## Features
 
 - **Repository management** — `init`, `clone`, `status`
