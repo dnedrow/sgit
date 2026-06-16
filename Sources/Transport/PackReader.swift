@@ -72,7 +72,7 @@ struct PackReader {
                 guard offset + 20 <= pack.count else {
                     throw SGitError.invalidArgument("truncated REF_DELTA base id")
                 }
-                let baseOID = GKObjectID(bytes: Array(pack[offset..<offset + 20]))
+                let baseOID = try GKObjectID(bytes: Array(pack[offset..<offset + 20]))
                 offset += 20
                 let inflated = try Zlib.inflate(Data(pack), at: offset, expectedSize: size)
                 offset += inflated.consumed
