@@ -83,6 +83,15 @@ jobs:
           security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
           security default-keychain -s "$KEYCHAIN_PATH"
 
+          # Import Apple's intermediate CAs so a genuine Developer ID Application
+          # certificate chains to a trusted root (otherwise it shows as
+          # CSSMERR_TP_NOT_TRUSTED and notarization would reject the signature).
+          for ca in AppleWWDRCAG3 DeveloperIDG2CA; do
+            if curl -fsSL -o "$RUNNER_TEMP/$ca.cer" "https://www.apple.com/certificateauthority/$ca.cer"; then
+              security import "$RUNNER_TEMP/$ca.cer" -k "$KEYCHAIN_PATH" -t cert -f der -A 2>/dev/null || true
+            fi
+          done
+
           # Task 4.2 — import the Developer ID cert and allow codesign to use it.
           # No `-t cert`: for a pkcs12 that hint can cause only the certificate
           # to import while the private key is skipped, leaving no usable signing
@@ -99,19 +108,21 @@ jobs:
             -s -k "$KEYCHAIN_PASSWORD" \
             "$KEYCHAIN_PATH" >/dev/null
 
-          # Confirm the import produced a usable code-signing identity.
+          # Show everything that imported, for diagnostics.
           echo "Identities available after import:"
           security find-identity -p codesigning "$KEYCHAIN_PATH" || true
 
-          # Guard — fail immediately (pointing at the cert/secret, not the later
-          # sign step) if the import yielded no usable code-signing identity.
-          IDENTITY_COUNT=$(security find-identity -p codesigning "$KEYCHAIN_PATH" \
-            | awk '/[0-9]+ valid identities found/ { print $1 }')
-          if [ -z "$IDENTITY_COUNT" ] || [ "$IDENTITY_COUNT" -eq 0 ]; then
-            echo "::error::Certificate import produced 0 code-signing identities. Verify DEVELOPER_ID_CERT_P12 is a base64-encoded .p12 that contains BOTH the Developer ID Application certificate AND its private key, and that DEVELOPER_ID_CERT_PASSWORD matches."
+          # Guard — require an actual "Developer ID Application" identity. This
+          # catches the common mistake of exporting the wrong certificate (a
+          # personal/self-signed cert whose name is a bare person name, or an
+          # "Apple Development" cert) which cannot notarize.
+          SIGN_HASH=$(security find-identity -p codesigning "$KEYCHAIN_PATH" \
+            | awk '/Developer ID Application/ { print $2; exit }')
+          if [ -z "$SIGN_HASH" ]; then
+            echo "::error::No 'Developer ID Application' certificate found in DEVELOPER_ID_CERT_P12. The imported identity (listed above) is not a Developer ID Application certificate. Export the certificate named 'Developer ID Application: <Name> (<TEAMID>)' together with its private key as a .p12, base64-encode it, and update the DEVELOPER_ID_CERT_P12 secret. A bare-name/self-signed or 'Apple Development' certificate cannot be used for notarized distribution."
             exit 1
           fi
-          echo "Import produced $IDENTITY_COUNT code-signing identity/identities."
+          echo "Found Developer ID Application identity: $SIGN_HASH"
 
       # Task 4.3 / 4.4 — sign with hardened runtime and verify.
       - name: Sign binary
