@@ -84,49 +84,80 @@ jobs:
           security default-keychain -s "$KEYCHAIN_PATH"
 
           # Task 4.2 — import the Developer ID cert and allow codesign to use it.
+          # No `-t cert`: for a pkcs12 that hint can cause only the certificate
+          # to import while the private key is skipped, leaving no usable signing
+          # identity. `-A` grants all apps access; `-T` additionally whitelists
+          # codesign explicitly.
           echo "$DEVELOPER_ID_CERT_P12" | base64 --decode > "$CERT_PATH"
           security import "$CERT_PATH" \
             -P "$DEVELOPER_ID_CERT_PASSWORD" \
-            -A -t cert -f pkcs12 \
+            -A -f pkcs12 \
+            -T /usr/bin/codesign \
             -k "$KEYCHAIN_PATH"
           security set-key-partition-list \
             -S apple-tool:,apple:,codesign: \
             -s -k "$KEYCHAIN_PASSWORD" \
             "$KEYCHAIN_PATH" >/dev/null
 
+          # Confirm the import produced a usable code-signing identity.
+          echo "Identities available after import:"
+          security find-identity -p codesigning "$KEYCHAIN_PATH" || true
+
+          # Guard — fail immediately (pointing at the cert/secret, not the later
+          # sign step) if the import yielded no usable code-signing identity.
+          IDENTITY_COUNT=$(security find-identity -p codesigning "$KEYCHAIN_PATH" \
+            | awk '/[0-9]+ valid identities found/ { print $1 }')
+          if [ -z "$IDENTITY_COUNT" ] || [ "$IDENTITY_COUNT" -eq 0 ]; then
+            echo "::error::Certificate import produced 0 code-signing identities. Verify DEVELOPER_ID_CERT_P12 is a base64-encoded .p12 that contains BOTH the Developer ID Application certificate AND its private key, and that DEVELOPER_ID_CERT_PASSWORD matches."
+            exit 1
+          fi
+          echo "Import produced $IDENTITY_COUNT code-signing identity/identities."
+
       # Task 4.3 / 4.4 — sign with hardened runtime and verify.
       - name: Sign binary
         env:
           SIGNING_IDENTITY: ${{ secrets.SIGNING_IDENTITY }}
         run: |
-          set -euo pipefail
+          # NOTE: intentionally NOT using `set -e`. Identity detection relies on
+          # grep/awk pipelines that legitimately exit non-zero when there is no
+          # match; with `set -e` + `pipefail` that aborts the whole step with no
+          # output. We handle emptiness and command failures explicitly instead.
+          set -uo pipefail
+
+          # Always dump what the keychain actually contains — this is the single
+          # most useful diagnostic when signing "fails without an error".
+          echo "=== Code-signing identities in keychain ==="
+          security find-identity -p codesigning "$KEYCHAIN_PATH" || true
+          echo "=== All identities in keychain ==="
+          security find-identity -v "$KEYCHAIN_PATH" || true
+          echo "==========================================="
 
           # Task 1.5 — if an explicit identity name is provided, use it as-is.
-          # Otherwise auto-detect by SHA-1 hash: the ephemeral keychain holds
-          # only the leaf cert (no Apple intermediate), so `find-identity -v`
-          # would filter the identity out. Detect without `-v` and sign by hash
-          # (codesign resolves the full chain from the system keychain).
+          # Otherwise auto-detect the Developer ID Application identity by SHA-1
+          # hash. `awk` returns 0 even with no match (unlike grep), so it can't
+          # trip the shell; sign by hash so codesign resolves the full chain
+          # from the system keychain.
           IDENTITY="${SIGNING_IDENTITY:-}"
           if [ -z "$IDENTITY" ]; then
             IDENTITY=$(security find-identity -p codesigning "$KEYCHAIN_PATH" \
-              | grep "Developer ID Application" | head -n1 \
-              | sed -E 's/^[[:space:]]*[0-9]+\)[[:space:]]+([A-F0-9]{40})[[:space:]]+.*$/\1/')
+              | awk '/Developer ID Application/ { print $2; exit }')
           fi
           if [ -z "$IDENTITY" ]; then
-            echo "::error::No Developer ID Application signing identity found"
-            echo "Identities present in keychain:"
-            security find-identity -p codesigning "$KEYCHAIN_PATH" || true
+            echo "::error::No 'Developer ID Application' signing identity found in the keychain. Check that DEVELOPER_ID_CERT_P12 contains a Developer ID Application certificate (not Apple Development / Developer ID Installer / Mac Developer), and that DEVELOPER_ID_CERT_PASSWORD is correct."
             exit 1
           fi
           echo "Signing with identity: $IDENTITY"
 
           # Task 4.3 — hardened runtime + secure timestamp.
-          codesign --force --options runtime --timestamp \
-            --sign "$IDENTITY" "$BINARY"
+          if ! codesign --force --options runtime --timestamp \
+            --sign "$IDENTITY" "$BINARY"; then
+            echo "::error::codesign failed for $BINARY"
+            exit 1
+          fi
 
           # Task 4.4 — verification gates the rest of the job.
-          codesign --verify --strict --verbose=2 "$BINARY"
-          codesign -d --verbose=4 "$BINARY"
+          codesign --verify --strict --verbose=2 "$BINARY" || { echo "::error::codesign verification failed"; exit 1; }
+          codesign -d --verbose=4 "$BINARY" || true
 
           # Debug — surface the signing chain (Authority lines) for the log.
           echo "Signature authority chain:"
