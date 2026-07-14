@@ -1,0 +1,206 @@
+name: Release
+
+# Task 2.1 — trigger only when a GitHub release is published.
+on:
+  release:
+    types: [published]
+
+# Task 2.2 — needed to upload assets onto the triggering release.
+permissions:
+  contents: write
+
+jobs:
+  build-sign-notarize:
+    name: Build, sign, notarize & upload universal binary
+    runs-on: macos-latest
+    env:
+      # Task 2.3 — the release tag drives checkout ref and asset name.
+      TAG: ${{ github.event.release.tag_name }}
+    steps:
+      # Task 2.3 — check out the exact source of the release tag.
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      # Task 2.4 — generate the Xcode project from project.yml.
+      - name: Install XcodeGen and generate project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      # Task 3.1 / 3.2 — build an unsigned universal binary and verify archs.
+      - name: Build universal binary
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project sgit.xcodeproj \
+            -scheme sgit \
+            -configuration Release \
+            -derivedDataPath build \
+            ARCHS="arm64 x86_64" \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+          BINARY="build/Build/Products/Release/sgit"
+          if [ ! -f "$BINARY" ]; then
+            echo "::error::Built binary not found at $BINARY"
+            exit 1
+          fi
+          echo "BINARY=$BINARY" >> "$GITHUB_ENV"
+
+          echo "Architectures in $BINARY:"
+          lipo -archs "$BINARY"
+          lipo -archs "$BINARY" | grep -q "arm64" || { echo "::error::arm64 slice missing"; exit 1; }
+          lipo -archs "$BINARY" | grep -q "x86_64" || { echo "::error::x86_64 slice missing"; exit 1; }
+
+      # Task 4.1 / 4.2 — create an ephemeral keychain and import the cert.
+      - name: Set up signing keychain
+        env:
+          DEVELOPER_ID_CERT_P12: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
+          DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DEVELOPER_ID_CERT_P12:-}" ] || [ -z "${DEVELOPER_ID_CERT_PASSWORD:-}" ] || [ -z "${KEYCHAIN_PASSWORD:-}" ]; then
+            echo "::error::Missing signing secrets (DEVELOPER_ID_CERT_P12 / DEVELOPER_ID_CERT_PASSWORD / KEYCHAIN_PASSWORD)"
+            exit 1
+          fi
+
+          KEYCHAIN_PATH="$RUNNER_TEMP/sgit-signing.keychain-db"
+          CERT_PATH="$RUNNER_TEMP/developer_id_cert.p12"
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          echo "CERT_PATH=$CERT_PATH" >> "$GITHUB_ENV"
+
+          # Task 4.1 — create, configure, and unlock the temporary keychain.
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Keep the login keychain in the search list so codesign still works.
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          security default-keychain -s "$KEYCHAIN_PATH"
+
+          # Task 4.2 — import the Developer ID cert and allow codesign to use it.
+          echo "$DEVELOPER_ID_CERT_P12" | base64 --decode > "$CERT_PATH"
+          security import "$CERT_PATH" \
+            -P "$DEVELOPER_ID_CERT_PASSWORD" \
+            -A -t cert -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN_PATH" >/dev/null
+
+      # Task 4.3 / 4.4 — sign with hardened runtime and verify.
+      - name: Sign binary
+        env:
+          SIGNING_IDENTITY: ${{ secrets.SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+
+          # Task 1.5 — use the provided identity, else auto-detect the
+          # Developer ID Application identity available in the keychain.
+          IDENTITY="${SIGNING_IDENTITY:-}"
+          if [ -z "$IDENTITY" ]; then
+            IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
+              | grep "Developer ID Application" | head -n1 \
+              | sed -E 's/^[[:space:]]*[0-9]+\)[[:space:]]+[A-F0-9]+[[:space:]]+"(.*)"$/\1/')
+          fi
+          if [ -z "$IDENTITY" ]; then
+            echo "::error::No Developer ID Application signing identity found"
+            exit 1
+          fi
+          echo "Signing with identity: $IDENTITY"
+
+          # Task 4.3 — hardened runtime + secure timestamp.
+          codesign --force --options runtime --timestamp \
+            --sign "$IDENTITY" "$BINARY"
+
+          # Task 4.4 — verification gates the rest of the job.
+          codesign --verify --strict --verbose=2 "$BINARY"
+          codesign -d --verbose=4 "$BINARY"
+
+      # Task 5.1 / 5.2 — stage the binary + man page and tar them up.
+      - name: Package archive
+        run: |
+          set -euo pipefail
+          STAGE="$RUNNER_TEMP/stage"
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE"
+          cp "$BINARY" "$STAGE/sgit"
+          cp share/man/man1/sgit.1 "$STAGE/sgit.1"
+
+          ARCHIVE="sgit-${TAG}-universal-macos.tar.gz"
+          tar -czf "$ARCHIVE" -C "$STAGE" sgit sgit.1
+          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+          echo "Archive contents:"
+          tar -tzf "$ARCHIVE"
+
+      # Task 6.1 / 6.2 / 6.3 — notarize the tarball and require acceptance.
+      - name: Notarize archive
+        env:
+          AC_API_KEY_ID: ${{ secrets.AC_API_KEY_ID }}
+          AC_API_ISSUER_ID: ${{ secrets.AC_API_ISSUER_ID }}
+          AC_API_KEY_P8: ${{ secrets.AC_API_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${AC_API_KEY_ID:-}" ] || [ -z "${AC_API_ISSUER_ID:-}" ] || [ -z "${AC_API_KEY_P8:-}" ]; then
+            echo "::error::Missing notarization secrets (AC_API_KEY_ID / AC_API_ISSUER_ID / AC_API_KEY_P8)"
+            exit 1
+          fi
+
+          # Task 6.1 — materialize the .p8 key.
+          P8_PATH="$RUNNER_TEMP/ac_api_key.p8"
+          echo "P8_PATH=$P8_PATH" >> "$GITHUB_ENV"
+          echo "$AC_API_KEY_P8" | base64 --decode > "$P8_PATH"
+
+          # Task 6.2 — submit and wait, capturing the submission id + status.
+          SUBMIT_JSON="$RUNNER_TEMP/notary-submit.json"
+          set +e
+          xcrun notarytool submit "$ARCHIVE" \
+            --key "$P8_PATH" \
+            --key-id "$AC_API_KEY_ID" \
+            --issuer "$AC_API_ISSUER_ID" \
+            --wait \
+            --output-format json > "$SUBMIT_JSON"
+          SUBMIT_RC=$?
+          set -e
+          cat "$SUBMIT_JSON"
+
+          STATUS=$(/usr/bin/plutil -extract status raw -o - "$SUBMIT_JSON" 2>/dev/null || echo "")
+          SUBMISSION_ID=$(/usr/bin/plutil -extract id raw -o - "$SUBMIT_JSON" 2>/dev/null || echo "")
+
+          # Task 6.3 — anything other than Accepted fails, with the notary log.
+          if [ "$STATUS" != "Accepted" ] || [ "$SUBMIT_RC" -ne 0 ]; then
+            echo "::error::Notarization failed with status: ${STATUS:-unknown}"
+            if [ -n "$SUBMISSION_ID" ]; then
+              echo "Fetching notarization log for $SUBMISSION_ID:"
+              xcrun notarytool log "$SUBMISSION_ID" \
+                --key "$P8_PATH" \
+                --key-id "$AC_API_KEY_ID" \
+                --issuer "$AC_API_ISSUER_ID" || true
+            fi
+            exit 1
+          fi
+          echo "Notarization accepted."
+
+      # Task 7.1 — attach the notarized archive to the release.
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release upload "$TAG" "$ARCHIVE" --clobber
+
+      # Task 7.2 — always clean up secret material and the ephemeral keychain.
+      - name: Clean up signing material
+        if: always()
+        run: |
+          set +e
+          [ -n "${KEYCHAIN_PATH:-}" ] && security delete-keychain "$KEYCHAIN_PATH"
+          security default-keychain -s login.keychain-db
+          [ -n "${CERT_PATH:-}" ] && rm -f "$CERT_PATH"
+          [ -n "${P8_PATH:-}" ] && rm -f "$P8_PATH"
+          exit 0

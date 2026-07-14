@@ -16,6 +16,31 @@ A lightweight, native command-line Git client written in Swift and powered by [G
 > to **data loss or corruption**. Always operate on backups or throwaway copies, and do not
 > rely on it for critical or irreplaceable data. Use at your own risk.
 
+## Download
+
+Each published [GitHub release](https://github.com/dnedrow/sgit/releases)
+includes a prebuilt, **universal** (`arm64` + `x86_64`) macOS binary that is
+Developer ID signed and notarized by Apple, so it runs without build tooling and
+passes Gatekeeper. The asset is named `sgit-vX.Y.Z-universal-macos.tar.gz` and
+bundles the `sgit` executable together with its `sgit.1` man page.
+
+```bash
+# Download and extract the latest release asset (replace vX.Y.Z with the tag)
+tar -xzf sgit-vX.Y.Z-universal-macos.tar.gz
+
+# Move the binary onto your PATH and the man page into place (optional)
+sudo install -m 0755 sgit /usr/local/bin/sgit
+sudo install -m 0644 sgit.1 /usr/local/share/man/man1/sgit.1
+
+# Confirm it runs
+sgit --version
+```
+
+> [!NOTE]
+> The binary is notarized but not stapled, so the **first** launch performs an
+> online Gatekeeper check and therefore needs network access. Prefer building
+> from source? See [Building](#building) below.
+
 ## Building
 
 sgit uses [XcodeGen](https://github.com/yonaskolb/XcodeGen) to generate its Xcode
