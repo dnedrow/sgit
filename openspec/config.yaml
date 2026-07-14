@@ -3,18 +3,49 @@ schema: spec-driven
 # Project context (optional)
 # This is shown to AI when creating artifacts.
 # Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  Project: sgit — a lightweight, native command-line Git client.
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+  Tech stack:
+    - Language: Swift (Foundation), targeting macOS.
+    - Git engine: GitKit (https://github.com/dnedrow/GitKit), imported as `GitKit`.
+    - Not pure Swift: links the system zlib (`-lz`) via an Objective-C/C bridging
+      header (Sources/Bridging/sgit-Bridging-Header.h) to inflate/deflate Git
+      packfile and object streams. A C toolchain with `zlib.h` is required.
+    - Build: XcodeGen generates sgit.xcodeproj from project.yml (the source of
+      truth); the .xcodeproj is not checked in. Build with
+      `xcodebuild -project sgit.xcodeproj -scheme sgit build`.
+    - Distribution: a man page lives at share/man/man1/sgit.1.
+
+  Architecture:
+    - Entry point: Sources/main.swift -> SGit.run(CommandLine.arguments).
+    - SGit.swift routes subcommands and owns the help/version screens and the
+      global `--activity` spinner flag.
+    - Commands.swift holds one handler per subcommand; handlers receive the
+      args remaining after the subcommand name.
+    - Support.swift: RepositoryLocator (walks up to `.git`), IdentityProvider
+      (env -> repo config -> ~/.gitconfig -> system user), and SGitError.
+    - Terminal.swift: ANSI styling/output (respects NO_COLOR and TTY detection).
+    - Activity.swift: stderr activity spinner, TTY-gated.
+    - Sources/Transport/: wire protocol, HTTP/SSH/Pipe transports, pack reading,
+      pktline, remote service orchestration, repository store, zlib bridging.
+
+  Conventions:
+    - GitKit types are prefixed `GK` (GKRepository, GKObjectID, GKSignature...).
+    - User-facing errors go to stderr via Terminal.error with a red `error:`
+      prefix; commands return non-zero on failure, zero on success.
+    - Prefer normative SHALL/MUST wording in specs; every requirement has at
+      least one WHEN/THEN scenario.
+
+  Status: experimental / work in progress — not production ready.
+
+  Domain: version control (Git) — repositories, index/staging, commits, refs
+  (branches/tags), history, and remote transports over HTTPS, SSH, and local paths.
+
+  Add custom rules for specific artifacts.
+   rules:
+     proposal:
+       - Keep proposals under 500 words
+       - Always include a "Non-goals" section
+     tasks:
+       - Break tasks into chunks of max 2 hours
