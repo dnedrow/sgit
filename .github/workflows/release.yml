@@ -4,6 +4,7 @@ name: Release
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 # Task 2.2 — needed to upload assets onto the triggering release.
 permissions:
