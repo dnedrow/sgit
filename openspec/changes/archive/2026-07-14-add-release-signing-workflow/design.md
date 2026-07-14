@@ -57,6 +57,22 @@ password. Modern, less brittle, no 2FA friction.
 Import the .p12 into a temporary keychain created and deleted within the job so
 no signing material persists on the runner.
 
+**Detect the signing identity by SHA-1 hash, not by `-v` name lookup.**
+The ephemeral keychain contains only the leaf certificate + private key from the
+`.p12`; the Apple *Developer ID Certification Authority* intermediate is absent.
+`security find-identity -v` only lists identities whose full chain validates to a
+trusted root, so with the intermediate missing it filters the identity out and
+auto-detection returns empty. Detect instead with `security find-identity -p
+codesigning "$KEYCHAIN_PATH"` (no `-v`), extract the 40-char SHA-1 hash of the
+`Developer ID Application` entry, and sign with `codesign --sign <HASH>`.
+`codesign` still resolves the full chain from the system keychain at signing
+time, so signing/notarization are unaffected. If the optional `SIGNING_IDENTITY`
+secret is set, honor it (pass the name to `codesign`) and skip detection.
+*Alternatives:* (B) require an explicit `SIGNING_IDENTITY` secret — rejected as
+it drops the zero-config auto-detect goal; (C) import the Apple intermediate so
+`-v` validates — rejected as it adds a network fetch / bundled cert that rotates.
+Signing by hash is unambiguous (no name collisions) and needs no extra secret.
+
 ## Risks / Trade-offs
 
 - Secret misconfiguration breaks releases → fail fast with clear steps; document

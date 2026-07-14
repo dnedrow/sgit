@@ -101,16 +101,21 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Task 1.5 — use the provided identity, else auto-detect the
-          # Developer ID Application identity available in the keychain.
+          # Task 1.5 — if an explicit identity name is provided, use it as-is.
+          # Otherwise auto-detect by SHA-1 hash: the ephemeral keychain holds
+          # only the leaf cert (no Apple intermediate), so `find-identity -v`
+          # would filter the identity out. Detect without `-v` and sign by hash
+          # (codesign resolves the full chain from the system keychain).
           IDENTITY="${SIGNING_IDENTITY:-}"
           if [ -z "$IDENTITY" ]; then
-            IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
+            IDENTITY=$(security find-identity -p codesigning "$KEYCHAIN_PATH" \
               | grep "Developer ID Application" | head -n1 \
-              | sed -E 's/^[[:space:]]*[0-9]+\)[[:space:]]+[A-F0-9]+[[:space:]]+"(.*)"$/\1/')
+              | sed -E 's/^[[:space:]]*[0-9]+\)[[:space:]]+([A-F0-9]{40})[[:space:]]+.*$/\1/')
           fi
           if [ -z "$IDENTITY" ]; then
             echo "::error::No Developer ID Application signing identity found"
+            echo "Identities present in keychain:"
+            security find-identity -p codesigning "$KEYCHAIN_PATH" || true
             exit 1
           fi
           echo "Signing with identity: $IDENTITY"
@@ -122,6 +127,10 @@ jobs:
           # Task 4.4 — verification gates the rest of the job.
           codesign --verify --strict --verbose=2 "$BINARY"
           codesign -d --verbose=4 "$BINARY"
+
+          # Debug — surface the signing chain (Authority lines) for the log.
+          echo "Signature authority chain:"
+          codesign -dvv "$BINARY" 2>&1 | grep -E '^Authority=' || true
 
       # Task 5.1 / 5.2 — stage the binary + man page and tar them up.
       - name: Package archive
