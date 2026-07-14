@@ -174,6 +174,16 @@ jobs:
           echo "Signature authority chain:"
           codesign -dvv "$BINARY" 2>&1 | grep -E '^Authority=' || true
 
+          # Fail early — before wasting a notarization round-trip — if the
+          # binary's signing authority is not a Developer ID Application cert.
+          # notarytool would otherwise reject it with "not signed with a valid
+          # Developer ID certificate".
+          if ! codesign -dvv "$BINARY" 2>&1 | grep -q '^Authority=Developer ID Application'; then
+            echo "::error::Signed binary is not signed by a 'Developer ID Application' authority. notarytool would reject this. Ensure DEVELOPER_ID_CERT_P12 holds a Developer ID Application certificate."
+            exit 1
+          fi
+          echo "Developer ID Application authority confirmed."
+
       # Task 5.1 / 5.2 — stage the binary + man page and tar them up.
       - name: Package archive
         run: |
@@ -229,10 +239,16 @@ jobs:
             echo "::error::Notarization failed with status: ${STATUS:-unknown}"
             if [ -n "$SUBMISSION_ID" ]; then
               echo "Fetching notarization log for $SUBMISSION_ID:"
+              LOG_JSON="$RUNNER_TEMP/notary-log.json"
               xcrun notarytool log "$SUBMISSION_ID" \
                 --key "$P8_PATH" \
                 --key-id "$AC_API_KEY_ID" \
-                --issuer "$AC_API_ISSUER_ID" || true
+                --issuer "$AC_API_ISSUER_ID" "$LOG_JSON" || true
+              cat "$LOG_JSON" 2>/dev/null || true
+              # Targeted hint if the rejection is about the Developer ID cert.
+              if grep -qiE "Developer ID|not signed with a valid|signing certificate" "$LOG_JSON" 2>/dev/null; then
+                echo "::error::Notary rejected the signing certificate: the binary must be signed with a valid Developer ID Application certificate. Update DEVELOPER_ID_CERT_P12 with a genuine 'Developer ID Application' cert (with its private key)."
+              fi
             fi
             exit 1
           fi
